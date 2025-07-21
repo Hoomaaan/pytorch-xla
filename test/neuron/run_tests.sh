@@ -56,6 +56,14 @@ function run_test {
   PJRT_DEVICE=NEURON NEURON_NUM_DEVICES=1 run_coverage "$@"
 }
 
+function run_test_multi_device {
+  if ! test_is_selected "$1"; then
+    return
+  fi
+  echo "Running in PjRt runtime: $@"
+  PJRT_DEVICE=NEURON run_coverage "$@"
+}
+
 function run_test_without_functionalization {
   if ! test_is_selected "$1"; then
     return
@@ -260,6 +268,7 @@ function run_xla_op_tests3 {
   run_test "$_TEST_DIR/test_persistent_cache.py"
   run_test "$_TEST_DIR/test_devices.py"
   run_xla_ir_hlo_debug run_test "$_TEST_DIR/test_user_computation_debug_cache.py"
+  run_test_multi_device "$_TEST_DIR/spmd/test_xla_dtensor_from_local.py"
 
   #python3 examples/data_parallel/train_resnet_xla_ddp.py # compiler error
   #python3 examples/fsdp/train_resnet_fsdp_auto_wrap.py
