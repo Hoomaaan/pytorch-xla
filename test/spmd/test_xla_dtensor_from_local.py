@@ -143,20 +143,6 @@ class DTensorXLAFromLocalConversionTest(test_xla_sharding_base.XlaShardingTest):
             
             print(f"Conversion with {dtype} successful")
 
-    def test_kiri(self):
-        from torch.distributed.tensor import distribute_tensor
-        world_size = xr.global_runtime_device_count()
-        mesh = DeviceMesh("xla", list(range(world_size)))
-        
-        big_tensor = torch.randn(100000, 88)
-        my_dtensor = distribute_tensor(big_tensor, mesh, [Shard(0)])
-        print(type(my_dtensor))
-        reg_tensor = my_dtensor.to_local()
-        print(type(reg_tensor))
-        # Check the value of the tensor
-        # torch.testing.assert_close(my_dtensor.to_local(), big_tensor, check_device=False)
-        # self.assertEqual(my_dtensor.shape, big_tensor.shape)
-        # assert my_dtensor.to_local() == big_tensor
 
 if __name__ == "__main__":
     result = unittest.main(exit=False)

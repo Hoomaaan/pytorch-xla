@@ -113,13 +113,15 @@ class XLAShardedTensor(torch.Tensor):
         dtype=elem.dtype,
         layout=elem.layout,
         device=elem.device,
-        requires_grad=kwargs.get("requires_grad", False))
+        requires_grad=kwargs.get("requires_grad", elem.requires_grad))
     r.global_tensor = elem.detach() if r.requires_grad else elem
-    # Store mesh and partition information for DTensor compatibility
-    if mesh_shape is not None:
-      r.mesh_shape = mesh_shape
-    if partition_spec is not None:
-      r.partition_spec = partition_spec
+
+    # Initialize mesh, partition, and spec information
+    r.mesh_shape = mesh_shape or (elem.mesh_shape if isinstance(
+        elem, XLAShardedTensor) else None)
+    r.partition_spec = partition_spec or (elem.partition_spec if isinstance(
+        elem, XLAShardedTensor) else None)
+    r._cached_spec = None
     return r
 
   # Shards on the devices are materialized/available after the lazy
@@ -145,7 +147,27 @@ class XLAShardedTensor(torch.Tensor):
     torch_xla._XLAC._load_local_shards(self.global_tensor, data, devices)
 
   def to_local(self):
-    return self.global_tensor
+    """
+    Returns the local representation of the XLAShardedTensor.
+    
+    This method returns the global tensor representation, which contains
+    the combined data across all devices. The returned tensor is on the
+    same device as the original XLAShardedTensor. The returned tensor
+    will have the same requires_grad value as the XLAShardedTensor.
+    If the original tensor has gradients, those will be preserved.
+    
+    Returns:
+        torch.Tensor: The global tensor representation with appropriate requires_grad setting.
+    """
+
+    # Create a new tensor with the same values of global_tensor
+    result = self.global_tensor.clone()
+    # Since global tensor is detached, add requires_grad and grad values back to the local tensor
+    if self.requires_grad:
+      result.requires_grad = self.requires_grad
+      result.grad = self.grad
+    
+    return result
 
   @property
   def sharding_spec(self):
