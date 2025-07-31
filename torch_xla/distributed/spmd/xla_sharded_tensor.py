@@ -220,7 +220,8 @@ class XLAShardedTensor(torch.Tensor):
       opsharding = torch_xla._XLAC._get_xla_sharding_spec(self.global_tensor)
       #  placements = self._parse_xla_sharding_to_placements(str(opsharding))
       # Convert XLA sharding spec to partition spec
-      partition_spec = self._parse_xla_sharding_spec_to_partition_spec(str(opsharding))
+      partition_spec = self._parse_xla_sharding_spec_to_partition_spec(
+          str(opsharding))
       # Convert parition spec to DTensor placements
       placements = self._partition_spec_to_placements(partition_spec)
     else:
@@ -265,33 +266,33 @@ class XLAShardedTensor(torch.Tensor):
   def _parse_xla_sharding_to_placements(self, sharding_spec_string):
     """Convert XLA sharding spec directly to DTensor placements."""
     import re
-    
+
     # Handle replicated case
     if 'devices=[1]' in sharding_spec_string:
-        return [Replicate() for _ in range(len(self.mesh_shape))]
-    
+      return [Replicate() for _ in range(len(self.mesh_shape))]
+
     # Extract tile dimensions: '{devices=[4,1]0,1,2,3}' -> [4,1]
     devices_match = re.search(r'devices=\[([^\]]+)\]', sharding_spec_string)
     if not devices_match:
-        return [Replicate() for _ in range(len(self.mesh_shape))]
-    
+      return [Replicate() for _ in range(len(self.mesh_shape))]
+
     tile_dims = [int(x.strip()) for x in devices_match.group(1).split(',')]
-    
+
     # Convert to placements
     placements = []
     mesh_dim = 0
-    
+
     for tensor_dim, tile_size in enumerate(tile_dims):
-        if tile_size > 1 and mesh_dim < len(self.mesh_shape):
-            placements.append(Shard(tensor_dim))
-            mesh_dim += 1
-    
+      if tile_size > 1 and mesh_dim < len(self.mesh_shape):
+        placements.append(Shard(tensor_dim))
+        mesh_dim += 1
+
     # Fill remaining mesh dimensions with Replicate
     while len(placements) < len(self.mesh_shape):
-        placements.append(Replicate())
-    
+      placements.append(Replicate())
+
     return placements
-  
+
   def _parse_xla_sharding_spec_to_partition_spec(self, sharding_spec_string):
     """
     Convert XLA sharding_spec string to partition_spec tuple.
@@ -303,28 +304,30 @@ class XLAShardedTensor(torch.Tensor):
         tuple: partition_spec like (0, None)
     """
     import re
-    
+
     # Handle replicated case
     if 'devices=[1]' in sharding_spec_string:
       return tuple([None] * len(self.global_tensor.shape))
-    
+
     # Extract tile assignment dimensions
     devices_match = re.search(r'devices=\[([^\]]+)\]', sharding_spec_string)
     if not devices_match:
       raise ValueError(f"Cannot parse sharding spec: {sharding_spec_string}")
-    
+
     # Parse tile dimensions
     tile_dims_str = devices_match.group(1)
     tile_dims = [int(x.strip()) for x in tile_dims_str.split(',')]
-    
+
     # Validate dimensions match tensor shape
     if len(tile_dims) != len(self.global_tensor.shape):
-      raise ValueError(f"Tile dims {tile_dims} don't match tensor shape {self.global_tensor.shape}")
-    
+      raise ValueError(
+          f"Tile dims {tile_dims} don't match tensor shape {self.global_tensor.shape}"
+      )
+
     # Convert to partition_spec
     partition_spec = []
     mesh_dim_counter = 0
-    
+
     for tensor_dim, tile_size in enumerate(tile_dims):
       if tile_size > 1:
         # This tensor dimension is sharded across mesh_dim_counter
@@ -333,7 +336,7 @@ class XLAShardedTensor(torch.Tensor):
       else:
         # This tensor dimension is replicated
         partition_spec.append(None)
-    
+
     return tuple(partition_spec)
 
   def _partition_spec_to_placements(self, partition_spec):
@@ -347,7 +350,7 @@ class XLAShardedTensor(torch.Tensor):
         list: DTensor placements like [Shard(0)]
     """
     placements = []
-    
+
     for mesh_dim in range(len(self.mesh_shape)):
       # Find which tensor dimension is sharded on this mesh dimension
       tensor_dim = None
@@ -355,11 +358,11 @@ class XLAShardedTensor(torch.Tensor):
         if m_dim == mesh_dim:
           tensor_dim = t_dim
           break
-        
+
       # Create placement for this mesh dimension
       if tensor_dim is not None:
         placements.append(Shard(tensor_dim))
       else:
         placements.append(Replicate())
-    
+
     return placements
